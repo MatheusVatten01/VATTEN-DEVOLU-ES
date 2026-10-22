@@ -1,0 +1,34 @@
+/* 03-ESTADOS.CSS - classes ligadas/desligadas pelo JavaScript (telas, oculto, toast, vazio). */
+
+/* Telas: só a tela ativa aparece */
+.tela { display: none; }
+.tela--ativa { display: block; animation: entrar 0.18s ease-out; }
+
+@keyframes entrar {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.oculto { display: none !important; }
+
+/* Mensagem rápida (toast) */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 50;
+  max-width: 420px;
+  padding: 11px 18px;
+  border-radius: 999px;
+  background: var(--topo);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  transform: translate(-50%, 10px);
+  transition: 0.2s;
+  pointer-events: none;
+}
+.toast--visivel { opacity: 1; transform: translate(-50%, 0); }
+
+/* Mensagem de lista vazia */
+.vazio { padding: 28px; text-align: center; color: var(--suave); }
