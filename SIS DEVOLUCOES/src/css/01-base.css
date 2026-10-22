@@ -1,0 +1,281 @@
+/* 01-BASE.CSS - variaveis (cores, medidas), base dos elementos e layout
+   (barra superior, pagina centralizada, colunas e versao para celular). */
+
+/* =========================================================
+   VARIÁVEIS — identidade própria do Devoluções (verde-petróleo
+   e areia), diferente do azul dos outros sistemas Vatten.
+   Para mudar a identidade visual, altere apenas este bloco.
+   ========================================================= */
+:root {
+  /* Superfícies e texto */
+  --fundo: #f5f2ec;
+  --superficie: #ffffff;
+  --superficie-2: #faf8f4;
+  --tinta: #1d2522;
+  --suave: #6d726c;
+  --linha: #e6e1d7;
+  --linha-forte: #d3ccbf;
+
+  /* Marca */
+  --primaria: #0f6b5c;
+  --primaria-escura: #0b4f44;
+  --primaria-clara: #e1f0ec;
+  --topo: #12302b;
+  --acento: #d9822b;
+
+  /* Status */
+  --verde: #1f7a45;
+  --verde-bg: #e3f3e8;
+  --ambar: #9a5b06;
+  --ambar-bg: #fcefd8;
+  --vermelho: #b42318;
+  --vermelho-bg: #fde7e4;
+  --violeta: #6236b3;
+  --violeta-bg: #eee7fb;
+  --azul: #1f5fa8;
+  --azul-bg: #e2edf9;
+  --cinza: #4a524e;
+  --cinza-bg: #eeebe5;
+
+  /* Medidas e tipografia */
+  --largura-max: 1240px;
+  --raio: 10px;
+  --raio-pequeno: 6px;
+  --sombra: 0 1px 2px rgba(29, 37, 34, 0.06), 0 6px 18px rgba(29, 37, 34, 0.05);
+  --fonte: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --fonte-titulo: Bahnschrift, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+}
+
+/* =========================================================
+   BASE
+   ========================================================= */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--fonte);
+  font-size: 14px;
+  line-height: 1.45;
+  background: var(--fundo);
+  color: var(--tinta);
+}
+
+a {
+  color: var(--primaria);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-family: var(--fonte-titulo);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+h1 {
+  font-size: 28px;
+}
+
+h3 {
+  font-size: 15px;
+}
+
+/* =========================================================
+   LAYOUT — barra superior fixa com abas, página centralizada.
+   ========================================================= */
+.topo {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--topo);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+
+.topo__interno {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  max-width: var(--largura-max);
+  margin: 0 auto;
+  padding: 10px 24px;
+}
+
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+}
+
+.marca:hover {
+  text-decoration: none;
+}
+
+.marca__selo {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--acento);
+  color: var(--topo);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.marca__nome {
+  display: block;
+  font-family: var(--fonte-titulo);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.marca__sub {
+  display: block;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.abas {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+}
+
+.abas__item {
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: #cfe3de;
+  font-weight: 600;
+}
+
+.abas__item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  text-decoration: none;
+}
+
+.abas__item--ativo {
+  background: #fff;
+  color: var(--topo);
+}
+
+.abas__item--ativo:hover {
+  background: #fff;
+  color: var(--topo);
+}
+
+.abas__item--destaque:not(.abas__item--ativo) {
+  margin-left: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+
+.pagina {
+  max-width: var(--largura-max);
+  margin: 0 auto;
+  padding: 28px 24px 64px;
+}
+
+.titulo {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.titulo__sobre {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--acento);
+}
+
+.titulo__descricao {
+  margin: 4px 0 0;
+  color: var(--suave);
+}
+
+.numeros {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.colunas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.detalhe {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 18px;
+  align-items: start;
+}
+
+.formulario-lateral {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: start;
+}
+
+.formulario-lateral__resumo,
+.bloco--acao {
+  position: sticky;
+  top: 78px;
+}
+
+/* ---------- Celular e tablet ---------- */
+@media (max-width: 960px) {
+  .topo__interno {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 16px;
+  }
+
+  .abas {
+    order: 3;
+    flex-basis: 100%;
+    overflow-x: auto;
+  }
+
+  .menu-dados {
+    margin-left: auto;
+  }
+
+  .pagina {
+    padding: 18px 16px 48px;
+  }
+
+  .numeros {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .colunas,
+  .detalhe,
+  .formulario-lateral {
+    grid-template-columns: 1fr;
+  }
+
+  .formulario-lateral__resumo,
+  .bloco--acao {
+    position: static;
+  }
+}

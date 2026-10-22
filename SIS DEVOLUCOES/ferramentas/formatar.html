@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Formatar código-fonte</title>
+<style>
+  body { font: 14px/1.5 Segoe UI, Arial, sans-serif; margin: 24px; color: #172033; }
+  pre { background: #f4f7fb; padding: 12px; border-radius: 8px; white-space: pre-wrap; }
+  button { padding: 10px 16px; border: 0; border-radius: 8px; background: #1d4ed8; color: #fff; font-weight: 700; cursor: pointer; }
+</style>
+<!-- Prettier: formatador de código. Altera apenas espaços e quebras de linha, nunca a lógica. -->
+<script src="https://cdn.jsdelivr.net/npm/prettier@3.3.3/standalone.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prettier@3.3.3/plugins/babel.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prettier@3.3.3/plugins/estree.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prettier@3.3.3/plugins/postcss.js"></script>
+</head>
+<body>
+<h1>Formatar código-fonte (src/)</h1>
+<p>Uso: rode <code>ferramentas\servidor.ps1</code> e abra <code>http://localhost:8001/ferramentas/formatar.html</code>.
+Os arquivos abaixo são reformatados e gravados de volta em <code>src/</code>.</p>
+<button id="go">Formatar todos</button>
+<pre id="log"></pre>
+<script>
+const ARQUIVOS = [
+  'js/configuracao.js', 'js/utilitarios.js', 'js/dados.js', 'js/mercadolivre.js', 'js/navegacao.js',
+  'js/painel.js', 'js/lista.js', 'js/nova.js', 'js/detalhe.js', 'js/configuracoes.js', 'js/backup.js',
+  'js/inicializacao.js',
+  'css/01-base.css', 'css/02-componentes.css', 'css/03-estados.css',
+];
+const OPCOES = { printWidth: 110, singleQuote: true, trailingComma: 'all', endOfLine: 'lf' };
+const log = msg => { document.getElementById('log').textContent += msg + '\n'; };
+
+async function formatarTodos() {
+  const resultado = [];
+  for (const arq of ARQUIVOS) {
+    try {
+      const original = await (await fetch('/src/' + arq, { cache: 'no-store' })).text();
+      const parser = arq.endsWith('.css') ? 'css' : 'babel';
+      const formatado = await prettier.format(original, { ...OPCOES, parser, plugins: Object.values(prettierPlugins) });
+      const r = await fetch('/src/' + arq, { method: 'PUT', headers: { 'X-Ferramenta': 'formatar' }, body: formatado });
+      if (!r.ok) throw new Error('falha ao gravar: ' + (await r.text()));
+      const linhas = formatado.split('\n').length;
+      log(`OK  ${arq}: ${original.split('\n').length} -> ${linhas} linhas`);
+      resultado.push({ arq, ok: true, linhas });
+    } catch (e) {
+      log(`ERRO ${arq}: ${e.message}`);
+      resultado.push({ arq, ok: false, erro: e.message });
+    }
+  }
+  log('Concluído.');
+  return resultado;
+}
+document.getElementById('go').onclick = formatarTodos;
+window.formatarTodos = formatarTodos;
+</script>
+</body>
+</html>

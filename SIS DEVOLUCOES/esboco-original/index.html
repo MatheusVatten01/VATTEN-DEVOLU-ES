@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle de Devoluções</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ===================== MENU LATERAL ===================== -->
+  <aside class="menu">
+    <div class="menu__logo">Devoluções</div>
+    <div class="menu__sub">Controle de trocas e devoluções</div>
+    <nav>
+      <a class="menu__link" href="#painel" data-tela="painel">Painel</a>
+      <a class="menu__link" href="#lista" data-tela="lista">Devoluções</a>
+      <a class="menu__link" href="#nova" data-tela="nova">Nova devolução</a>
+    </nav>
+    <div class="menu__rodape">
+      <button class="botao botao--secundario botao--pequeno" type="button" id="btnExportarCsv">Exportar planilha (CSV)</button>
+      <button class="botao botao--secundario botao--pequeno" type="button" id="btnBackup">Fazer backup</button>
+      <label class="botao botao--secundario botao--pequeno" for="arquivoRestaurar">Restaurar backup</label>
+      <input class="oculto" type="file" id="arquivoRestaurar" accept="application/json">
+    </div>
+  </aside>
+
+  <main class="conteudo">
+
+    <!-- ===================== TELA 1: PAINEL ===================== -->
+    <section class="tela secao" id="tela-painel">
+      <header class="cabecalho">
+        <div>
+          <h1>Painel</h1>
+          <p class="cabecalho__descricao" id="painelDescricao">Resumo das devoluções</p>
+        </div>
+        <div class="filtros">
+          <div class="campo">
+            <label for="painelMes">Mês de abertura</label>
+            <input type="month" id="painelMes">
+          </div>
+        </div>
+      </header>
+
+      <div class="grade-4">
+        <div class="indicador">
+          <div class="indicador__rotulo">Devoluções no mês</div>
+          <div class="indicador__valor" id="kpiTotal">0</div>
+          <div class="indicador__rodape" id="kpiTotalRodape">—</div>
+        </div>
+        <div class="indicador indicador--amarelo">
+          <div class="indicador__rotulo">Em aberto</div>
+          <div class="indicador__valor" id="kpiAbertas">0</div>
+          <div class="indicador__rodape" id="kpiAbertasRodape">—</div>
+        </div>
+        <div class="indicador indicador--verde">
+          <div class="indicador__rotulo">Viraram troca/crédito</div>
+          <div class="indicador__valor" id="kpiTroca">0%</div>
+          <div class="indicador__rodape">Das devoluções resolvidas no mês</div>
+        </div>
+        <div class="indicador indicador--vermelho">
+          <div class="indicador__rotulo">Custo de frete reverso</div>
+          <div class="indicador__valor" id="kpiFrete">R$ 0,00</div>
+          <div class="indicador__rodape" id="kpiFreteRodape">—</div>
+        </div>
+      </div>
+
+      <div class="grade-2">
+        <div class="cartao">
+          <h3 class="cartao__titulo">Principais motivos</h3>
+          <div id="painelMotivos"></div>
+        </div>
+        <div class="cartao">
+          <h3 class="cartao__titulo">Prazos mais próximos (em aberto)</h3>
+          <div class="tabela-wrap">
+            <table class="tabela tabela--compacta">
+              <thead><tr><th>Devolução</th><th>Cliente</th><th>Prazo</th></tr></thead>
+              <tbody id="painelPrazos"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== TELA 2: LISTA ===================== -->
+    <section class="tela secao" id="tela-lista">
+      <header class="cabecalho">
+        <div>
+          <h2>Devoluções</h2>
+          <p class="cabecalho__descricao">Todas as solicitações de troca e devolução</p>
+        </div>
+        <a class="botao" href="#nova">+ Nova devolução</a>
+      </header>
+
+      <div class="cartao">
+        <div class="filtros filtros--espacado">
+          <div class="campo campo--busca">
+            <label for="filtroBusca">Buscar</label>
+            <input type="search" id="filtroBusca" placeholder="Código, pedido, cliente ou produto">
+          </div>
+          <div class="campo">
+            <label for="filtroStatus">Status</label>
+            <select id="filtroStatus" data-opcoes="status" data-todos="Todos"></select>
+          </div>
+          <div class="campo">
+            <label for="filtroTipo">Tipo</label>
+            <select id="filtroTipo" data-opcoes="tipos" data-todos="Todos"></select>
+          </div>
+          <div class="campo">
+            <label for="filtroCanal">Canal</label>
+            <select id="filtroCanal" data-opcoes="canais" data-todos="Todos"></select>
+          </div>
+          <button class="botao botao--secundario" type="button" id="btnLimparFiltros">Limpar</button>
+        </div>
+
+        <div class="tabela-wrap">
+          <table class="tabela">
+            <thead>
+              <tr>
+                <th>Código</th><th>Pedido</th><th>Cliente</th><th>Produto</th>
+                <th>Tipo</th><th>Canal</th><th>Abertura</th><th>Prazo</th><th>Status</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="listaCorpo"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== TELA 3: NOVA DEVOLUÇÃO ===================== -->
+    <section class="tela secao" id="tela-nova">
+      <header class="cabecalho">
+        <div>
+          <h2>Nova devolução</h2>
+          <p class="cabecalho__descricao">Registre a solicitação do cliente</p>
+        </div>
+      </header>
+
+      <div class="cartao">
+        <div class="aviso">
+          Arrependimento: o cliente tem <b>7 dias corridos a partir da entrega</b>, o reembolso é integral e o frete de volta é por conta da loja.
+        </div>
+
+        <form id="formNova">
+          <fieldset class="grupo">
+            <legend>Pedido</legend>
+            <div class="form-grade">
+              <div class="campo">
+                <label for="pedido">Número do pedido</label>
+                <input type="text" id="pedido" name="pedido" required>
+              </div>
+              <div class="campo">
+                <label for="canal">Canal de venda</label>
+                <select id="canal" name="canal" data-opcoes="canais" required></select>
+              </div>
+              <div class="campo">
+                <label for="entrega">Data de entrega</label>
+                <input type="date" id="entrega" name="entrega" required>
+              </div>
+              <div class="campo">
+                <label for="nfVenda">Chave da NF-e de venda</label>
+                <input type="text" id="nfVenda" name="nfVenda" maxlength="44">
+              </div>
+              <div class="campo">
+                <label for="valorProduto">Valor do produto (R$)</label>
+                <input type="number" id="valorProduto" name="valorProduto" step="0.01" min="0">
+              </div>
+              <div class="campo">
+                <label for="frete">Frete reverso (R$)</label>
+                <input type="number" id="frete" name="frete" step="0.01" min="0">
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="grupo">
+            <legend>Cliente</legend>
+            <div class="form-grade">
+              <div class="campo">
+                <label for="cliente">Nome</label>
+                <input type="text" id="cliente" name="cliente" required>
+              </div>
+              <div class="campo">
+                <label for="cpf">CPF</label>
+                <input type="text" id="cpf" name="cpf" placeholder="000.000.000-00">
+              </div>
+              <div class="campo">
+                <label for="contato">Telefone / e-mail</label>
+                <input type="text" id="contato" name="contato">
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="grupo">
+            <legend>Produto e motivo</legend>
+            <div class="form-grade">
+              <div class="campo campo--duplo">
+                <label for="produto">Produto (SKU e descrição)</label>
+                <input type="text" id="produto" name="produto" required>
+              </div>
+              <div class="campo">
+                <label for="quantidade">Quantidade</label>
+                <input type="number" id="quantidade" name="quantidade" min="1" value="1">
+              </div>
+              <div class="campo">
+                <label for="tipo">Tipo</label>
+                <select id="tipo" name="tipo" data-opcoes="tipos" required></select>
+              </div>
+              <div class="campo">
+                <label for="motivo">Motivo</label>
+                <select id="motivo" name="motivo" data-opcoes="motivos" required></select>
+              </div>
+              <div class="campo">
+                <label for="solucao">Solução desejada</label>
+                <select id="solucao" name="solucao" data-opcoes="solucoes"></select>
+              </div>
+              <div class="campo campo--inteiro">
+                <label for="observacao">Observações</label>
+                <textarea id="observacao" name="observacao" placeholder="Descreva o problema relatado pelo cliente"></textarea>
+              </div>
+            </div>
+          </fieldset>
+
+          <div class="aviso aviso--alerta oculto" id="avisoPrazo"></div>
+
+          <div class="acoes">
+            <button class="botao botao--secundario" type="reset">Limpar</button>
+            <button class="botao" type="submit">Registrar devolução</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ===================== TELA 4: DETALHE ===================== -->
+    <section class="tela secao" id="tela-detalhe">
+      <header class="cabecalho">
+        <div>
+          <h2 id="detTitulo">Devolução</h2>
+          <p class="cabecalho__descricao" id="detSubtitulo"></p>
+        </div>
+        <span class="status" id="detStatus"></span>
+      </header>
+
+      <div class="cartao">
+        <h3 class="cartao__titulo">Dados da solicitação</h3>
+        <div class="dados" id="detDados"></div>
+      </div>
+
+      <div class="grade-2">
+        <div class="cartao">
+          <h3 class="cartao__titulo">Andamento</h3>
+          <ul class="linha-tempo" id="detLinhaTempo"></ul>
+        </div>
+
+        <div class="cartao">
+          <!-- Avançar etapa: aparece enquanto a devolução não chegou à inspeção -->
+          <div id="detBlocoAvancar">
+            <h3 class="cartao__titulo">Próxima etapa</h3>
+            <form id="formAvancar">
+              <div class="form-grade form-grade--2">
+                <div class="campo campo--inteiro" id="campoRastreio">
+                  <label for="rastreio">Código de postagem / rastreio</label>
+                  <input type="text" id="rastreio" name="rastreio" placeholder="Ex.: AR123456789BR">
+                </div>
+              </div>
+              <div class="acoes">
+                <button class="botao botao--perigo" type="button" id="btnRecusarInicio">Recusar</button>
+                <button class="botao" type="submit" id="btnAvancar">Avançar</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Inspeção: aparece quando o produto foi recebido -->
+          <div id="detBlocoInspecao">
+            <h3 class="cartao__titulo">Inspeção e resolução</h3>
+            <form id="formInspecao">
+              <div class="form-grade form-grade--2">
+                <div class="campo">
+                  <label for="estado">Estado do produto</label>
+                  <select id="estado" name="estado" data-opcoes="estados"></select>
+                </div>
+                <div class="campo">
+                  <label for="destino">Destino</label>
+                  <select id="destino" name="destino" data-opcoes="destinos"></select>
+                </div>
+                <div class="campo">
+                  <label for="resolucao">Resolução</label>
+                  <select id="resolucao" name="resolucao" data-opcoes="solucoes"></select>
+                </div>
+                <div class="campo">
+                  <label for="valorReembolso">Valor reembolsado (R$)</label>
+                  <input type="number" id="valorReembolso" name="valorReembolso" step="0.01" min="0">
+                </div>
+                <div class="campo">
+                  <label for="cfop">CFOP da NF-e de entrada</label>
+                  <select id="cfop" name="cfop" data-opcoes="cfops"></select>
+                </div>
+                <div class="campo">
+                  <label for="nfEntrada">Chave da NF-e de entrada</label>
+                  <input type="text" id="nfEntrada" name="nfEntrada" maxlength="44">
+                </div>
+                <div class="campo campo--inteiro">
+                  <label for="parecer">Parecer da inspeção</label>
+                  <textarea id="parecer" name="parecer"></textarea>
+                </div>
+              </div>
+              <div class="acoes">
+                <button class="botao botao--perigo" type="button" id="btnRecusar">Recusar</button>
+                <button class="botao" type="submit">Concluir devolução</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Encerrada -->
+          <div id="detBlocoEncerrada">
+            <h3 class="cartao__titulo">Resolução</h3>
+            <div class="dados" id="detResolucao"></div>
+          </div>
+
+          <div class="acoes">
+            <button class="botao botao--perigo botao--pequeno" type="button" id="btnExcluir">Excluir devolução</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
