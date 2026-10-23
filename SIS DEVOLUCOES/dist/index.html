@@ -1524,10 +1524,11 @@ h3 {
         <div class="acoes">
           <button class="botao" type="submit">Salvar</button>
           <button class="botao botao--fantasma" type="button" id="btnTestarPonte">Salvar e testar conexão</button>
-          <button class="botao botao--fantasma" type="button" id="btnSincronizarAgora">Sincronizar agora</button>
+          <button class="botao botao--fantasma" type="button" id="btnSincronizarAgora" title="Busca completa dos últimos 60 dias">Sincronizar agora (60 dias)</button>
         </div>
         <div class="aviso oculto" id="cfgResultado"></div>
         <p class="bloco__dica" id="cfgUltima"></p>
+        <div class="aviso aviso--alerta oculto" id="cfgFalhas"></div>
       </form>
 
       <div class="bloco">
@@ -2062,6 +2063,8 @@ function moverParaEtapaML(d, etapa) {
 
 /** Cria ou atualiza a devolução a partir do pacote. Nunca apaga o que a equipe preencheu. */
 function aplicarPacoteML(pacote) {
+  // Reclamação sem devolução (ex.: mediação resolvida com reembolso): nada a importar.
+  if (pacote?.semDevolucao) return 'ignorada';
   const conv = converterDevolucaoML(pacote);
   let d = banco.devolucoes.find((x) => x.ml?.claimId === conv.ml.claimId);
   const nova = !d;
@@ -2100,35 +2103,45 @@ function montarRevisaoML(d, { resultado, motivo, mensagem, anexos = [] }) {
 /* ------------------------ Chamadas (usam a ponte) ------------------------ */
 
 /** Busca na ponte as devoluções novas ou alteradas e aplica no banco. */
-async function sincronizarML({ silencioso = false } = {}) {
+async function sincronizarML({ silencioso = false, completa = false } = {}) {
   if (sincronizandoML) return null;
   sincronizandoML = true;
   atualizarBotaoML();
   try {
     const cfg = configML();
-    const desde = cfg.ultimaSincronizacao
+    // completa: ignora a última sincronização e revisa os últimos ML_DIAS_PRIMEIRA_SINCRONIZACAO dias.
+    const desde = cfg.ultimaSincronizacao && !completa
       ? somarDias(dataLocalDeISO(cfg.ultimaSincronizacao), -1)
       : somarDias(hojeISO(), -ML_DIAS_PRIMEIRA_SINCRONIZACAO);
     const { devolucoes = [] } = await chamarPonte(`/devolucoes?desde=${desde}`);
     const contagem = { novas: 0, atualizadas: 0, erros: 0 };
+    const falhas = [];
     for (const item of devolucoes) {
       const existente = banco.devolucoes.find((d) => d.ml?.claimId === String(item.claimId));
       if (existente && item.atualizadoEm && existente.ml.claimAtualizadoEm === item.atualizadoEm) continue;
       try {
         const resultado = aplicarPacoteML(await chamarPonte(`/devolucoes/${item.claimId}`));
-        contagem[resultado === 'nova' ? 'novas' : 'atualizadas']++;
+        if (resultado !== 'ignorada') contagem[resultado === 'nova' ? 'novas' : 'atualizadas']++;
       } catch (erro) {
         console.error(erro);
         contagem.erros++;
+        falhas.push(`Reclamação ${item.claimId}: ${erro.message}`);
       }
     }
     salvar();
-    salvarConfigML({ ...configML(), ultimaSincronizacao: new Date().toISOString() });
+    // Guarda os motivos para a tela Configurações (sem dados do comprador, só nº da reclamação e a mensagem).
+    // Com erro, a data não avança: as reclamações que falharam voltam na próxima busca.
+    const cfgAtual = configML();
+    salvarConfigML({
+      ...cfgAtual,
+      ultimaSincronizacao: falhas.length ? cfgAtual.ultimaSincronizacao : new Date().toISOString(),
+      ultimasFalhas: falhas.slice(0, 20),
+    });
     ultimoErroML = '';
     if (!silencioso || contagem.novas || contagem.erros)
       toast(
         `Mercado Livre: ${contagem.novas} nova(s), ${contagem.atualizadas} atualizada(s)` +
-          (contagem.erros ? `, ${contagem.erros} com erro` : '') +
+          (contagem.erros ? `, ${contagem.erros} com erro — ${falhas[0]}` : '') +
           '.',
       );
     redesenharListagens();
@@ -2821,6 +2834,11 @@ function renderConfig() {
   $('cfgUltima').textContent = cfg.ultimaSincronizacao
     ? `Última sincronização: ${dataHoraBR(cfg.ultimaSincronizacao)}`
     : 'Ainda não sincronizado.';
+  const falhas = cfg.ultimasFalhas || [];
+  $('cfgFalhas').classList.toggle('oculto', !falhas.length);
+  $('cfgFalhas').innerHTML = falhas.length
+    ? `<b>Erros na última sincronização:</b><ul>${falhas.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>`
+    : '';
   $('cfgResultado').textContent = '';
   $('cfgResultado').className = 'aviso oculto';
 }
@@ -2852,7 +2870,7 @@ async function testarPonte() {
   try {
     const s = await chamarPonte('/status', { tempoLimite: 15000 });
     resultado.textContent = s.autorizado
-      ? `Conectado. Conta do Mercado Livre: ${s.contaML}. Token renova sozinho (próximo vencimento ${dataHoraBR(s.tokenVenceEm)}).`
+      ? `Conectado. Conta do Mercado Livre: ${s.contaML}. Token renova sozinho (próximo vencimento ${dataHoraBR(s.tokenVenceEm)}). Versão da ponte: ${s.versao || 'antiga (cole o código novo na Cloudflare)'}.`
       : 'A ponte respondeu, mas ainda não foi autorizada no Mercado Livre. Abra o endereço /autorizar da ponte (veja o passo a passo).';
     if (!s.autorizado) resultado.className = 'aviso aviso--alerta';
   } catch (erro) {
@@ -2989,7 +3007,7 @@ function iniciar() {
   $('resultadoML').addEventListener('change', atualizarCamposFalhaML);
   $('formConfig').addEventListener('submit', salvarConfigTela);
   $('btnTestarPonte').addEventListener('click', testarPonte);
-  $('btnSincronizarAgora').addEventListener('click', () => gravarConfigTela() && sincronizarML().then(renderConfig));
+  $('btnSincronizarAgora').addEventListener('click', () => gravarConfigTela() && sincronizarML({ completa: true }).then(renderConfig));
 
   $('btnBackup').addEventListener('click', fazerBackup);
   $('arquivoRestaurar').addEventListener('change', restaurarBackup);
