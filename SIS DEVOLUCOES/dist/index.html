@@ -2092,6 +2092,33 @@ function montarNomeProduto(sku, nome) {
   return [sku, nome].filter(Boolean).join(' · ');
 }
 
+/* --------------------- Compartilhar pela ponte do ML --------------------- */
+
+/** Mantém a tabela igual em todos os computadores: a importação mais recente vence.
+    Ponte mais nova → baixa e corrige as devoluções; local mais nova → envia para a ponte.
+    Retorna 'sem_ponte' | 'baixada' | 'enviada' | 'igual'. Lança Error se a ponte falhar. */
+async function sincronizarCatalogoPonte() {
+  if (!mlConfigurado()) return 'sem_ponte';
+  const { catalogo: remoto } = await chamarPonte('/produtos');
+  const quando = (c) => (c?.itens && c.total ? Date.parse(c.importadoEm) || 0 : -1);
+  const [tRemoto, tLocal] = [quando(remoto), quando(catalogoProdutos)];
+  if (tRemoto > tLocal) {
+    catalogoProdutos = remoto;
+    salvarCatalogo();
+    if (corrigirNomesML()) salvar();
+    return 'baixada';
+  }
+  if (tLocal > tRemoto) {
+    await chamarPonte('/produtos', {
+      method: 'POST',
+      body: JSON.stringify(catalogoProdutos),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return 'enviada';
+  }
+  return 'igual';
+}
+
 /* --------------------------------- Tela --------------------------------- */
 
 async function importarTabelaProdutos(evento) {
@@ -2113,14 +2140,24 @@ async function importarTabelaProdutos(evento) {
   if (!salvarCatalogo()) return;
   const corrigidas = corrigirNomesML();
   if (corrigidas) salvar();
-  toast(`${tabela.total} produto(s) importado(s).${corrigidas ? ` ${corrigidas} devolução(ões) corrigida(s).` : ''}`);
+  let compartilhada = '';
+  try {
+    compartilhada =
+      (await sincronizarCatalogoPonte()) === 'enviada' ? ' Enviada para os outros computadores pela ponte.' : '';
+  } catch (erro) {
+    compartilhada = ` Não foi possível enviar para a ponte (${erro.message}); os outros computadores ainda não a receberam.`;
+  }
+  toast(
+    `${tabela.total} produto(s) importado(s).${corrigidas ? ` ${corrigidas} devolução(ões) corrigida(s).` : ''}${compartilhada}`,
+  );
   renderCatalogo();
 }
 
 function renderCatalogo() {
   const c = catalogoProdutos;
   $('catResumo').textContent = c.total
-    ? `${c.total} produtos na tabela · importada em ${dataHoraBR(c.importadoEm)}${c.arquivo ? ` (${c.arquivo})` : ''}`
+    ? `${c.total} produtos na tabela · importada em ${dataHoraBR(c.importadoEm)}${c.arquivo ? ` (${c.arquivo})` : ''}` +
+      (mlConfigurado() ? ' · compartilhada com os outros computadores pela ponte' : '')
     : 'Nenhuma tabela importada: as devoluções do ML ficam com o nome do anúncio.';
   const avisos = c.avisos || [];
   $('catAvisos').classList.toggle('oculto', !avisos.length);
@@ -2354,6 +2391,12 @@ async function sincronizarML({ silencioso = false, completa = false } = {}) {
   sincronizandoML = true;
   atualizarBotaoML();
   try {
+    // Tabela de produtos primeiro: as devoluções importadas a seguir já saem com o nome real.
+    try {
+      await sincronizarCatalogoPonte();
+    } catch (erro) {
+      console.warn('Tabela de produtos não sincronizada com a ponte.', erro);
+    }
     const cfg = configML();
     // completa: ignora a última sincronização e revisa os últimos ML_DIAS_PRIMEIRA_SINCRONIZACAO dias.
     const desde = cfg.ultimaSincronizacao && !completa
