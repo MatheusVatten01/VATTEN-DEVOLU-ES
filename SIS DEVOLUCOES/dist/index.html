@@ -1034,6 +1034,98 @@ h3 {
 .revisao-ml--erro { background: var(--vermelho-bg); color: var(--vermelho); }
 .revisao-ml--andamento { background: var(--ambar-bg); color: var(--ambar); }
 
+/* Fotos e anexos da reclamação */
+.fotos-ml__titulo {
+  margin: 14px 0 8px;
+  font-size: 13px;
+}
+
+.fotos-ml {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.foto-ml {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 132px;
+  padding: 6px;
+  background: var(--superficie-2);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio-pequeno);
+  color: var(--tinta);
+  font: inherit;
+  text-align: left;
+  cursor: zoom-in;
+}
+
+.foto-ml:hover {
+  border-color: var(--primaria);
+}
+
+.foto-ml__img {
+  display: grid;
+  place-items: center;
+  height: 100px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--cinza-bg);
+  font-size: 11px;
+  color: var(--suave);
+  text-align: center;
+  word-break: break-word;
+}
+
+.foto-ml__img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.foto-ml small {
+  font-size: 11px;
+  color: var(--suave);
+}
+
+.foto-ml--arquivo {
+  cursor: pointer;
+}
+
+.selo-fotos {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.visor {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  background: rgba(10, 20, 18, 0.88);
+  cursor: zoom-out;
+}
+
+.visor img {
+  max-width: 100%;
+  max-height: calc(100vh - 90px);
+  border-radius: var(--raio-pequeno);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.visor__legenda {
+  margin: 0;
+  max-width: 800px;
+  color: #e7f1ee;
+  text-align: center;
+}
+
 .campos-ml {
   /* fieldset tem largura mínima = conteúdo; sem isso vaza do painel lateral */
   min-width: 0;
@@ -1398,6 +1490,8 @@ h3 {
           </div>
           <p class="bloco__dica" id="detMLSituacao"></p>
           <div class="dados" id="detMLDados"></div>
+          <h4 class="fotos-ml__titulo">Fotos e anexos da reclamação</h4>
+          <div class="fotos-ml" id="detMLFotos"></div>
           <div class="revisao-ml" id="detMLRevisao"></div>
           <div class="campo oculto" id="campoReenvioAnexos">
             <label for="anexosReenvioML">Evidências para o reenvio (fotos/PDF)</label>
@@ -1561,6 +1655,12 @@ h3 {
 </main>
 
 <div class="toast" id="toast"></div>
+
+<!-- Visor de foto em tamanho grande (clique ou Esc fecha) -->
+<div class="visor oculto" id="visorFoto" role="dialog" aria-label="Foto da reclamação">
+  <img id="visorImagem" alt="">
+  <p class="visor__legenda" id="visorLegenda"></p>
+</div>
 
 <!-- Scripts clássicos (escopo global compartilhado). A ordem importa: configuracao -> utilitarios -> dados
      -> navegacao e telas -> inicializacao (sempre o último). Não usar type="module", async nem defer. -->
@@ -2248,6 +2348,30 @@ async function chamarPonte(caminho, { method = 'GET', body, headers = {}, tempoL
   return dados;
 }
 
+/** Baixa um arquivo pela ponte (ex.: foto do comprador) e devolve um Blob. */
+async function chamarPonteArquivo(caminho, { tempoLimite = 60000 } = {}) {
+  const cfg = configML();
+  if (!cfg.url || !cfg.chave) throw new Error('Configure a ponte do Mercado Livre em Dados → Configurações.');
+  const controle = new AbortController();
+  const timer = setTimeout(() => controle.abort(), tempoLimite);
+  try {
+    const r = await fetch(cfg.url.replace(/\/+$/, '') + caminho, {
+      headers: { 'X-Chave-Ponte': cfg.chave },
+      signal: controle.signal,
+    });
+    if (!r.ok) {
+      const dados = await r.json().catch(() => ({}));
+      throw new Error(dados.erro || `A ponte respondeu com erro ${r.status}.`);
+    }
+    return await r.blob();
+  } catch (erro) {
+    if (erro.name === 'AbortError') throw new Error('A ponte demorou demais para enviar o arquivo.');
+    throw erro;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /* ------------------------ Conversão (funções puras) ------------------------ */
 
 /** Data/hora ISO do ML → AAAA-MM-DD no fuso do computador. */
@@ -2323,6 +2447,20 @@ function converterDevolucaoML(pacote) {
       situacaoTexto: [detalhe?.title, detalhe?.description].filter(Boolean).join(' — '),
       claimAtualizadoEm: claim.last_updated || '',
       sincronizadoEm: new Date().toISOString(),
+      // Só a lista dos anexos das mensagens (fotos do comprador etc.); o arquivo é baixado ao abrir o detalhe.
+      anexos: Array.isArray(pacote.anexos)
+        ? pacote.anexos
+            .filter((a) => a && a.arquivo)
+            .map((a) => ({
+              arquivo: String(a.arquivo),
+              nomeOriginal: String(a.nomeOriginal || a.arquivo),
+              tipo: String(a.tipo || ''),
+              data: String(a.data || ''),
+              de: String(a.de || ''),
+              mensagem: String(a.mensagem || ''),
+            }))
+        : undefined,
+      anexosErro: pacote.anexosErro || '',
     },
   };
 }
@@ -2710,9 +2848,14 @@ function seloML(d) {
   if (d.origem !== 'mercadolivre') return '';
   const situacao = d.ml?.revisao?.situacao;
   const alerta = situacao === 'erro' || situacao === 'pendente';
-  return ` <span class="selo-ml${alerta ? ' selo-ml--alerta' : ''}" title="${
-    alerta ? 'Revisão ainda não enviada ao Mercado Livre' : 'Importada do Mercado Livre'
-  }">ML${alerta ? ' !' : ''}</span>`;
+  // Conta o que veio do comprador ou do mediador do ML (na conta real as fotos vieram pela mediação); não os da Vatten.
+  const fotos = (d.ml?.anexos || []).filter((a) => a.de !== 'respondent').length;
+  return (
+    ` <span class="selo-ml${alerta ? ' selo-ml--alerta' : ''}" title="${
+      alerta ? 'Revisão ainda não enviada ao Mercado Livre' : 'Importada do Mercado Livre'
+    }">ML${alerta ? ' !' : ''}</span>` +
+    (fotos ? ` <span class="selo-fotos" title="${fotos} foto(s)/anexo(s) do comprador ou do Mercado Livre">📷 ${fotos}</span>` : '')
+  );
 }
 
 function renderLista() {
@@ -2957,6 +3100,8 @@ function renderBlocoML(d, item) {
     item('Atualizado do ML', esc(dataHoraBR(ml.sincronizadoEm))),
   ].join('');
 
+  renderFotosML(d);
+
   const classe = { enviada: 'ok', erro: 'erro', pendente: 'erro', enviando: 'andamento' }[r.situacao] || '';
   $('detMLRevisao').className = `revisao-ml ${classe ? 'revisao-ml--' + classe : ''}`;
   $('detMLRevisao').innerHTML =
@@ -2974,6 +3119,102 @@ function renderBlocoML(d, item) {
   // Sem evidências já enviadas e o motivo exige: pede os arquivos de novo (não ficam salvos no navegador).
   const precisaArquivos = reenviar && MOTIVOS_ML_COM_ANEXO.includes(r.motivo) && !(r.anexos || []).length;
   $('campoReenvioAnexos').classList.toggle('oculto', !precisaArquivos);
+}
+
+/* ------------------- Fotos e anexos da reclamação (ML) ------------------- */
+
+const QUEM_ENVIOU = { complainant: 'Comprador', respondent: 'Vatten', mediator: 'Mediador ML' };
+// Fotos já baixadas nesta sessão (claimId/arquivo → blob URL). Não ficam salvas no navegador.
+const cacheFotosML = new Map();
+// Devoluções antigas (sem lista de anexos): busca no ML uma vez por sessão ao abrir o detalhe.
+const anexosBuscadosML = new Set();
+
+function ehImagem(a) {
+  return /^image\//i.test(a.tipo) || /\.(jpe?g|png|gif|webp|bmp)$/i.test(a.arquivo);
+}
+
+function renderFotosML(d) {
+  const caixa = $('detMLFotos');
+  const anexos = d.ml.anexos;
+  if (anexos === undefined) {
+    caixa.innerHTML = '<p class="bloco__dica">Buscando fotos no Mercado Livre…</p>';
+    if (mlConfigurado() && !anexosBuscadosML.has(d.codigo)) {
+      anexosBuscadosML.add(d.codigo);
+      atualizarAbertaDoML({ silencioso: true });
+    } else caixa.innerHTML = '<p class="bloco__dica">Clique em "Atualizar do ML" para buscar as fotos.</p>';
+    return;
+  }
+  if (d.ml.anexosErro && !anexos.length) {
+    caixa.innerHTML = `<p class="aviso aviso--alerta">Não foi possível ler as mensagens da reclamação: ${esc(
+      d.ml.anexosErro,
+    )}. Confira se o aplicativo do ML tem a permissão "Comunicações pré e pós-vendas".</p>`;
+    return;
+  }
+  if (!anexos.length) {
+    caixa.innerHTML = '<p class="bloco__dica">Nenhuma foto ou anexo enviado na reclamação.</p>';
+    return;
+  }
+  // Comprador primeiro, depois mediador do ML, por último os enviados pela Vatten.
+  const ordem = { complainant: 0, mediator: 1 };
+  const ordenados = anexos.slice().sort((a, b) => (ordem[a.de] ?? 2) - (ordem[b.de] ?? 2));
+  caixa.innerHTML = ordenados
+    .map((a, i) => {
+      const legenda = `${QUEM_ENVIOU[a.de] || 'Enviado'} · ${dataHoraBR(a.data)}`;
+      return ehImagem(a)
+        ? `<button class="foto-ml" type="button" data-i="${i}" title="${esc(a.mensagem || a.nomeOriginal)}">
+             <span class="foto-ml__img">Carregando…</span><small>${esc(legenda)}</small></button>`
+        : `<button class="foto-ml foto-ml--arquivo" type="button" data-i="${i}" title="${esc(a.mensagem || '')}">
+             <span class="foto-ml__img">📄 ${esc(a.nomeOriginal)}</span><small>${esc(legenda)}</small></button>`;
+    })
+    .join('');
+  caixa._anexos = ordenados;
+  caixa._claimId = d.ml.claimId;
+  ordenados.forEach((a, i) => {
+    if (ehImagem(a)) carregarFotoML(d.ml.claimId, a, caixa.querySelector(`[data-i="${i}"] .foto-ml__img`));
+  });
+}
+
+async function urlDoAnexoML(claimId, a) {
+  const chave = `${claimId}/${a.arquivo}`;
+  if (!cacheFotosML.has(chave)) {
+    const blob = await chamarPonteArquivo(`/foto/${encodeURIComponent(claimId)}/${encodeURIComponent(a.arquivo)}`);
+    cacheFotosML.set(chave, URL.createObjectURL(blob));
+  }
+  return cacheFotosML.get(chave);
+}
+
+async function carregarFotoML(claimId, a, alvo) {
+  try {
+    const url = await urlDoAnexoML(claimId, a);
+    if (!alvo.isConnected) return; // usuário já trocou de tela
+    alvo.innerHTML = `<img src="${url}" alt="${esc(a.nomeOriginal)}">`;
+  } catch (erro) {
+    if (alvo.isConnected) alvo.textContent = `Não carregou: ${erro.message}`;
+  }
+}
+
+/** Clique numa miniatura: foto abre no visor; PDF/outro abre numa aba nova. */
+async function abrirAnexoML(evento) {
+  const botao = evento.target.closest('.foto-ml');
+  if (!botao) return;
+  const caixa = $('detMLFotos');
+  const a = caixa._anexos?.[Number(botao.dataset.i)];
+  if (!a) return;
+  try {
+    const url = await urlDoAnexoML(caixa._claimId, a);
+    if (ehImagem(a)) {
+      $('visorImagem').src = url;
+      $('visorLegenda').textContent = [QUEM_ENVIOU[a.de], dataHoraBR(a.data), a.mensagem].filter(Boolean).join(' · ');
+      $('visorFoto').classList.remove('oculto');
+    } else window.open(url, '_blank', 'noopener');
+  } catch (erro) {
+    alert(erro.message);
+  }
+}
+
+function fecharVisorFoto() {
+  $('visorFoto').classList.add('oculto');
+  $('visorImagem').removeAttribute('src');
 }
 
 /** Mostra/esconde os campos de revisão do ML na inspeção e sugere o resultado pelo estado do produto. */
@@ -3000,16 +3241,24 @@ function atualizarCamposFalhaML() {
   $('campoAnexosML').classList.toggle('oculto', !falha);
 }
 
-async function atualizarAbertaDoML() {
+async function atualizarAbertaDoML({ silencioso = false } = {}) {
   const d = buscar(codigoAberto);
   if (!d?.ml) return;
   try {
     await atualizarDoML(d);
-    toast(`${d.codigo} atualizada do Mercado Livre.`);
+    if (!silencioso) toast(`${d.codigo} atualizada do Mercado Livre.`);
   } catch (erro) {
-    alert(erro.message);
+    if (!silencioso) alert(erro.message);
+    // Sem conseguir buscar: deixa a lista vazia com o motivo, para não ficar "Buscando…" para sempre.
+    if (d.ml.anexos === undefined) {
+      d.ml.anexos = [];
+      d.ml.anexosErro = erro.message;
+    }
   }
-  if (codigoAberto === d.codigo) renderDetalhe(d.codigo);
+  if (codigoAberto !== d.codigo || !location.hash.startsWith('#detalhe/')) return;
+  // Busca automática: redesenha só as fotos, para não apagar o que está sendo digitado na inspeção.
+  if (silencioso) renderFotosML(d);
+  else renderDetalhe(d.codigo);
 }
 
 /** Envia a revisão e avisa o resultado; redesenha se a devolução ainda estiver aberta na tela. */
@@ -3310,7 +3559,10 @@ function iniciar() {
 
   // Mercado Livre
   $('btnSincronizarML').addEventListener('click', cliqueSincronizarML);
-  $('btnAtualizarML').addEventListener('click', atualizarAbertaDoML);
+  $('btnAtualizarML').addEventListener('click', () => atualizarAbertaDoML());
+  $('detMLFotos').addEventListener('click', abrirAnexoML);
+  $('visorFoto').addEventListener('click', fecharVisorFoto);
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && fecharVisorFoto());
   $('btnReenviarML').addEventListener('click', reenviarRevisao);
   $('estado').addEventListener('change', sugerirResultadoML);
   $('resultadoML').addEventListener('change', atualizarCamposFalhaML);
