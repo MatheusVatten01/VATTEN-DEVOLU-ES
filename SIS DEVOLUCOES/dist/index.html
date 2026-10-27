@@ -603,6 +603,12 @@ h3 {
   padding: 6px;
 }
 
+/* Campo de chave: mascarado sem ser type="password" (evita o gerenciador de senhas do navegador). */
+.campo input.campo-segredo {
+  -webkit-text-security: disc;
+  text-security: disc;
+}
+
 .campo input:focus,
 .campo select:focus,
 .campo textarea:focus {
@@ -1605,7 +1611,7 @@ h3 {
     </header>
 
     <div class="colunas">
-      <form class="bloco" id="formConfig">
+      <form class="bloco" id="formConfig" autocomplete="off">
         <div class="bloco__cabecalho"><h3>Ponte do Mercado Livre</h3></div>
         <div class="campo">
           <label for="cfgUrl">Endereço da ponte</label>
@@ -1613,7 +1619,10 @@ h3 {
         </div>
         <div class="campo" style="margin-top:12px">
           <label for="cfgChave">Chave da ponte (PONTE_CHAVE)</label>
-          <input type="password" id="cfgChave" autocomplete="off">
+          <!-- type="text" mascarado por CSS (não "password"): assim o Chrome não oferece salvar a chave no
+               gerenciador de senhas. A chave salva nunca volta para o campo (ver renderConfig). -->
+          <input type="text" id="cfgChave" class="campo-segredo" autocomplete="off" spellcheck="false"
+                 autocapitalize="off" data-lpignore="true" data-1p-ignore data-bwignore>
         </div>
         <div class="acoes">
           <button class="botao" type="submit">Salvar</button>
@@ -3376,7 +3385,11 @@ function renderConfig() {
   renderCatalogo();
   const cfg = configML();
   $('cfgUrl').value = cfg.url || '';
-  $('cfgChave').value = cfg.chave || '';
+  // A chave nunca é devolvida ao campo: fica só no localStorage. Campo vazio = manter a chave salva.
+  $('cfgChave').value = '';
+  $('cfgChave').placeholder = cfg.chave
+    ? 'Chave salva neste navegador (deixe em branco para manter)'
+    : 'Cole aqui a PONTE_CHAVE';
   $('cfgUltima').textContent = cfg.ultimaSincronizacao
     ? `Última sincronização: ${dataHoraBR(cfg.ultimaSincronizacao)}`
     : 'Ainda não sincronizado.';
@@ -3392,12 +3405,18 @@ function renderConfig() {
 /** Grava o que está na tela. Retorna false se o endereço for inválido. */
 function gravarConfigTela() {
   const url = $('cfgUrl').value.trim().replace(/\/+$/, '');
-  const chave = $('cfgChave').value.trim();
+  const digitada = $('cfgChave').value.trim();
   if (url && !/^https:\/\//i.test(url)) {
     alert('O endereço da ponte precisa começar com https://');
     return false;
   }
+  // Endereço vazio desliga a integração e apaga a chave; campo da chave vazio mantém a já salva.
+  const chave = url ? digitada || configML().chave || '' : '';
   salvarConfigML({ ...configML(), url, chave });
+  $('cfgChave').value = '';
+  $('cfgChave').placeholder = chave
+    ? 'Chave salva neste navegador (deixe em branco para manter)'
+    : 'Cole aqui a PONTE_CHAVE';
   atualizarBotaoML();
   return true;
 }
