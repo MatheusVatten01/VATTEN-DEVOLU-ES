@@ -2,8 +2,17 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Vatten · Controle de Devoluções</title>
+  <!-- App instalável (PWA): manifesto, ícones e cor da barra do celular -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#12302b">
+  <link rel="icon" type="image/png" sizes="192x192" href="icones/icone-192.png">
+  <link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Devoluções">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="css/01-base.css">
   <link rel="stylesheet" href="css/02-componentes.css">
   <link rel="stylesheet" href="css/03-estados.css">
@@ -31,7 +40,7 @@
     <details class="menu-dados">
       <summary class="botao botao--fantasma-claro">Dados ▾</summary>
       <div class="menu-dados__lista">
-        <a class="menu-dados__item" href="#config">Mercado Livre (configurar)…</a>
+        <a class="menu-dados__item" href="#config">Configurações (ML e produtos)…</a>
         <button class="menu-dados__item" type="button" id="btnExportarCsv">Exportar planilha (CSV)</button>
         <button class="menu-dados__item" type="button" id="btnBackup">Fazer backup</button>
         <label class="menu-dados__item" for="arquivoRestaurar">Restaurar backup…</label>
@@ -291,6 +300,8 @@
           </div>
           <p class="bloco__dica" id="detMLSituacao"></p>
           <div class="dados" id="detMLDados"></div>
+          <h4 class="fotos-ml__titulo">Fotos e anexos da reclamação</h4>
+          <div class="fotos-ml" id="detMLFotos"></div>
           <div class="revisao-ml" id="detMLRevisao"></div>
           <div class="campo oculto" id="campoReenvioAnexos">
             <label for="anexosReenvioML">Evidências para o reenvio (fotos/PDF)</label>
@@ -398,13 +409,13 @@
     <header class="titulo">
       <div>
         <p class="titulo__sobre">Integração</p>
-        <h1>Mercado Livre</h1>
-        <p class="titulo__descricao">Endereço e chave da ponte (ponte/worker.js). Ficam só neste computador, fora do backup.</p>
+        <h1>Configurações</h1>
+        <p class="titulo__descricao">Ponte do Mercado Livre e tabela de produtos (SKU → nome real).</p>
       </div>
     </header>
 
     <div class="colunas">
-      <form class="bloco" id="formConfig">
+      <form class="bloco" id="formConfig" autocomplete="off">
         <div class="bloco__cabecalho"><h3>Ponte do Mercado Livre</h3></div>
         <div class="campo">
           <label for="cfgUrl">Endereço da ponte</label>
@@ -412,15 +423,19 @@
         </div>
         <div class="campo" style="margin-top:12px">
           <label for="cfgChave">Chave da ponte (PONTE_CHAVE)</label>
-          <input type="password" id="cfgChave" autocomplete="off">
+          <!-- type="text" mascarado por CSS (não "password"): assim o Chrome não oferece salvar a chave no
+               gerenciador de senhas. A chave salva nunca volta para o campo (ver renderConfig). -->
+          <input type="text" id="cfgChave" class="campo-segredo" autocomplete="off" spellcheck="false"
+                 autocapitalize="off" data-lpignore="true" data-1p-ignore data-bwignore>
         </div>
         <div class="acoes">
           <button class="botao" type="submit">Salvar</button>
           <button class="botao botao--fantasma" type="button" id="btnTestarPonte">Salvar e testar conexão</button>
-          <button class="botao botao--fantasma" type="button" id="btnSincronizarAgora">Sincronizar agora</button>
+          <button class="botao botao--fantasma" type="button" id="btnSincronizarAgora" title="Busca completa dos últimos 60 dias">Sincronizar agora (60 dias)</button>
         </div>
         <div class="aviso oculto" id="cfgResultado"></div>
         <p class="bloco__dica" id="cfgUltima"></p>
+        <div class="aviso aviso--alerta oculto" id="cfgFalhas"></div>
       </form>
 
       <div class="bloco">
@@ -434,17 +449,38 @@
         </ul>
       </div>
     </div>
+
+    <div class="bloco">
+      <div class="bloco__cabecalho">
+        <h3>Tabela de produtos (SKU → nome real)</h3>
+        <label class="botao" for="arquivoCatalogo">Importar planilha (CSV)…</label>
+        <input class="oculto" type="file" id="arquivoCatalogo" accept=".csv,text/csv">
+      </div>
+      <p class="bloco__dica">Nas devoluções do Mercado Livre, o nome do produto vem desta tabela pelo SKU, em vez do título do anúncio.
+        Use a planilha de precificação salva como CSV: só as colunas <b>Sku</b> e <b>Descrição</b> são lidas (custos e preços não são guardados).
+        A tabela fica neste navegador e vai junto no backup.</p>
+      <p id="catResumo"></p>
+      <div class="aviso aviso--alerta oculto" id="catFaltando"></div>
+      <div class="aviso oculto" id="catAvisos"></div>
+    </div>
   </section>
 
 </main>
 
 <div class="toast" id="toast"></div>
 
+<!-- Visor de foto em tamanho grande (clique ou Esc fecha) -->
+<div class="visor oculto" id="visorFoto" role="dialog" aria-label="Foto da reclamação">
+  <img id="visorImagem" alt="">
+  <p class="visor__legenda" id="visorLegenda"></p>
+</div>
+
 <!-- Scripts clássicos (escopo global compartilhado). A ordem importa: configuracao -> utilitarios -> dados
      -> navegacao e telas -> inicializacao (sempre o último). Não usar type="module", async nem defer. -->
 <script src="js/configuracao.js"></script>
 <script src="js/utilitarios.js"></script>
 <script src="js/dados.js"></script>
+<script src="js/catalogo.js"></script>
 <script src="js/mercadolivre.js"></script>
 <script src="js/navegacao.js"></script>
 <script src="js/painel.js"></script>

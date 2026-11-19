@@ -4,16 +4,21 @@
 'use strict';
 
 function gerarBackup() {
-  return JSON.stringify({ formato: FORMATO_BACKUP, geradoEm: new Date().toISOString(), ...banco }, null, 2);
+  return JSON.stringify(
+    { formato: FORMATO_BACKUP, geradoEm: new Date().toISOString(), ...banco, catalogo: catalogoProdutos },
+    null,
+    2,
+  );
 }
 
-/** Lê o texto de um backup e devolve o banco pronto para uso. Aceita também
-    backups do esboço inicial (sem o campo "formato"). Lança Error se for inválido. */
+/** Lê o texto de um backup e devolve o banco pronto para uso, mais a tabela de produtos em
+    "catalogo" (null se o backup não tiver). Aceita também backups do esboço inicial (sem o
+    campo "formato"). Lança Error se for inválido. */
 function lerBackup(textoArquivo) {
   const dados = JSON.parse(textoArquivo);
   if (dados.formato && dados.formato !== FORMATO_BACKUP)
     throw new Error(`arquivo de outro sistema (${dados.formato})`);
-  return migrarBanco(dados);
+  return { ...migrarBanco(dados), catalogo: dados.catalogo?.itens ? dados.catalogo : null };
 }
 
 function fazerBackup() {
@@ -33,7 +38,13 @@ async function restaurarBackup(evento) {
     return;
   }
   if (!confirm(`Restaurar ${novo.devolucoes.length} devolução(ões)? Os dados atuais serão substituídos.`)) return;
-  banco = novo;
+  const { catalogo, ...novoBanco } = novo;
+  banco = novoBanco;
+  // Backups antigos não têm a tabela de produtos: mantém a que já está no navegador.
+  if (catalogo) {
+    catalogoProdutos = catalogo;
+    salvarCatalogo();
+  }
   // Restaurar um backup válido resolve uma falha de leitura na abertura.
   erroCarregamento = '';
   if (salvar()) toast('Backup restaurado.');

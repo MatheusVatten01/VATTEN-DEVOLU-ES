@@ -2,6 +2,7 @@
 #
 # Uso:  powershell -ExecutionPolicy Bypass -File ferramentas\build.ps1
 # Saida: dist\Vatten_Devolucoes.html  (abrir com duplo clique)
+#        dist\index.html + manifest.webmanifest + sw.js + icones\  (app instalavel / GitHub Pages)
 #
 # O que faz: copia src\index.html e substitui cada <link href="css/..."> e
 # <script src="js/..."> local pelo conteudo do arquivo. O resultado nao pode ter
@@ -44,6 +45,18 @@ if ($html -match '<script[^>]*\ssrc="https?:') { throw 'Sobrou <script src="http
 
 New-Item -ItemType Directory -Force $dist | Out-Null
 [IO.File]::WriteAllText($saida, $html, $utf8)
+# Mesma pagina como index.html: e o endereco publicado (GitHub Pages) e o "start_url" do app instalavel.
+[IO.File]::WriteAllText((Join-Path $dist 'index.html'), $html, $utf8)
+
+# App instalavel (PWA): manifesto, service worker e icones ficam ao lado do HTML.
+# No duplo clique (file://) eles sao ignorados e o sistema funciona igual.
+foreach ($arq in @('manifest.webmanifest', 'sw.js')) {
+  Copy-Item -LiteralPath (Join-Path $src $arq) -Destination (Join-Path $dist $arq) -Force
+}
+$icones = Join-Path $dist 'icones'
+New-Item -ItemType Directory -Force $icones | Out-Null
+Copy-Item -Path (Join-Path $src 'icones\*.png') -Destination $icones -Force
+
 $hash = (Get-FileHash -LiteralPath $saida -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
-Write-Host ("OK: {0} CSS e {1} JS embutidos." -f $contagem.css, $contagem.js)
+Write-Host ("OK: {0} CSS e {1} JS embutidos. PWA: manifesto, sw.js e icones copiados." -f $contagem.css, $contagem.js)
 Write-Host ("Gerado: dist\Vatten_Devolucoes.html ({0:N0} KB, sha256 {1}...)" -f ((Get-Item $saida).Length / 1KB), $hash)

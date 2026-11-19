@@ -278,4 +278,23 @@ h3 {
   .bloco--acao {
     position: static;
   }
+
+  /* Celular: 16px nos campos evita o zoom automático do iPhone ao tocar. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* App instalado (tela cheia): afasta a barra superior do relógio/entalhe do
+   celular e o fim da página da barra de gestos. No navegador comum vale 0. */
+@media (display-mode: standalone) {
+  .topo {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .pagina {
+    padding-bottom: calc(48px + env(safe-area-inset-bottom));
+  }
 }

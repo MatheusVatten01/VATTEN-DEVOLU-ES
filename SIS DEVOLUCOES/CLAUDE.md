@@ -21,7 +21,11 @@ src/                     <- CÓDIGO-FONTE OFICIAL (editar só aqui)
   js/painel.js, js/lista.js, js/nova.js, js/detalhe.js   uma tela cada
   js/configuracoes.js    tela #config (endereço e chave da ponte ML)
   js/backup.js           backup JSON, restauração e CSV
-  js/inicializacao.js    liga botões e chama iniciar() (SEMPRE o último script)
+  js/catalogo.js         tabela SKU → nome real do produto (importada de CSV; vai no backup)
+  js/inicializacao.js    liga botões e chama iniciar() (SEMPRE o último script); registra o sw.js (PWA)
+  manifest.webmanifest   app instalável (PWA): nome, ícones, cores, tela cheia
+  sw.js                  service worker: cópia offline do sistema ("rede primeiro"); não toca nos dados nem na ponte
+  icones/                ícones do app (192, 512, maskable, apple-touch-icon)
 testes/                  testes automáticos (abrem src/ num iframe)
 ferramentas/servidor.ps1 servidor local na porta 8001 (PowerShell, sem Python/Node)
 ferramentas/build.ps1    gera dist/Vatten_Devolucoes.html (arquivo único, uso diário)
@@ -43,7 +47,13 @@ tempo horizontal e painel de ações à direita. Cores só em `:root` de `01-bas
 1. Editar arquivos em `src/`.
 2. Servidor: `powershell -ExecutionPolicy Bypass -File ferramentas\servidor.ps1` (ou tarefa do VS Code).
 3. Testar em `http://localhost:8001/src/` e rodar `http://localhost:8001/testes/` — todos os testes devem passar.
-4. Gerar o arquivo final: `powershell -ExecutionPolicy Bypass -File ferramentas\build.ps1` → `dist\Vatten_Devolucoes.html`.
+4. Gerar o arquivo final: `powershell -ExecutionPolicy Bypass -File ferramentas\build.ps1` → `dist\Vatten_Devolucoes.html`
+   e `dist\index.html` (publicado no GitHub Pages) + `manifest.webmanifest`, `sw.js` e `icones\`.
+   Ao mudar algo que o app precisa receber logo, subir `CACHE` em `src/sw.js` (ex.: `devolucoes-app-v2`).
+
+**PWA:** só funciona em https (GitHub Pages) ou localhost; no duplo clique (`file://`) é ignorado. O navegador
+embutido do app Claude não aceita service worker — testar no Chrome. Em 11/2026 o `src/` foi reconstruído a partir do
+`dist/index.html` publicado (o `src/` do GitHub estava desatualizado); o build reproduziu o publicado byte a byte.
 5. Ao mudar regra (prazo, etapa, validação), adicionar/ajustar teste em `testes/testes.js`.
 
 Ambiente: Windows, PowerShell 5.1, VS Code. **Não há Python, Node nem Git instalados.** Scripts `.ps1` devem ser

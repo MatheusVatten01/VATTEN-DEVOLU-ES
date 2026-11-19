@@ -67,6 +67,30 @@ async function chamarPonte(caminho, { method = 'GET', body, headers = {}, tempoL
   return dados;
 }
 
+/** Baixa um arquivo pela ponte (ex.: foto do comprador) e devolve um Blob. */
+async function chamarPonteArquivo(caminho, { tempoLimite = 60000 } = {}) {
+  const cfg = configML();
+  if (!cfg.url || !cfg.chave) throw new Error('Configure a ponte do Mercado Livre em Dados → Configurações.');
+  const controle = new AbortController();
+  const timer = setTimeout(() => controle.abort(), tempoLimite);
+  try {
+    const r = await fetch(cfg.url.replace(/\/+$/, '') + caminho, {
+      headers: { 'X-Chave-Ponte': cfg.chave },
+      signal: controle.signal,
+    });
+    if (!r.ok) {
+      const dados = await r.json().catch(() => ({}));
+      throw new Error(dados.erro || `A ponte respondeu com erro ${r.status}.`);
+    }
+    return await r.blob();
+  } catch (erro) {
+    if (erro.name === 'AbortError') throw new Error('A ponte demorou demais para enviar o arquivo.');
+    throw erro;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /* ------------------------ Conversão (funções puras) ------------------------ */
 
 /** Data/hora ISO do ML → AAAA-MM-DD no fuso do computador. */
@@ -94,6 +118,9 @@ function converterDevolucaoML(pacote) {
   const vendedor = (claim.players || []).find((p) => p.type === 'seller') || {};
   const acoesRevisao = (vendedor.available_actions || []).filter((a) => String(a.action).startsWith('return_review'));
   const reason = String(claim.reason_id || '');
+  // Nome do produto: o do cadastro (tabela SKU → nome), não o título do anúncio.
+  const sku = String(itemPed?.item?.seller_sku || itemPed?.item?.seller_custom_field || '').trim();
+  const tituloAnuncio = itemPed?.item?.title || '';
 
   return {
     campos: {
@@ -111,8 +138,7 @@ function converterDevolucaoML(pacote) {
       cliente: nome,
       cpf: '',
       contato: comprador.nickname ? `ML: ${comprador.nickname}` : '',
-      produto:
-        [itemPed?.item?.seller_sku, itemPed?.item?.title].filter(Boolean).join(' · ') || String(itemDev.item_id || ''),
+      produto: montarNomeProduto(sku, nomeRealDoSku(sku) || tituloAnuncio) || String(itemDev.item_id || ''),
       quantidade,
       tipo: claim.type === 'change' ? 'troca' : reason.startsWith('PDD') ? 'defeito' : 'arrependimento',
       motivo: reason.startsWith('PDD') ? 'defeito' : 'outro',
@@ -126,6 +152,8 @@ function converterDevolucaoML(pacote) {
       returnId: String(devolucao.id),
       orderId: String(itemDev.order_id || pedido?.id || ''),
       itemId: itemDev.item_id || '',
+      sku,
+      tituloAnuncio,
       packId: pedido?.pack_id ? String(pedido.pack_id) : '',
       statusDevolucao: devolucao.status || '',
       statusDinheiro: devolucao.status_money || '',
@@ -138,6 +166,20 @@ function converterDevolucaoML(pacote) {
       situacaoTexto: [detalhe?.title, detalhe?.description].filter(Boolean).join(' — '),
       claimAtualizadoEm: claim.last_updated || '',
       sincronizadoEm: new Date().toISOString(),
+      // Só a lista dos anexos das mensagens (fotos do comprador etc.); o arquivo é baixado ao abrir o detalhe.
+      anexos: Array.isArray(pacote.anexos)
+        ? pacote.anexos
+            .filter((a) => a && a.arquivo)
+            .map((a) => ({
+              arquivo: String(a.arquivo),
+              nomeOriginal: String(a.nomeOriginal || a.arquivo),
+              tipo: String(a.tipo || ''),
+              data: String(a.data || ''),
+              de: String(a.de || ''),
+              mensagem: String(a.mensagem || ''),
+            }))
+        : undefined,
+      anexosErro: pacote.anexosErro || '',
     },
   };
 }
@@ -159,6 +201,8 @@ function moverParaEtapaML(d, etapa) {
 
 /** Cria ou atualiza a devolução a partir do pacote. Nunca apaga o que a equipe preencheu. */
 function aplicarPacoteML(pacote) {
+  // Reclamação sem devolução (ex.: mediação resolvida com reembolso): nada a importar.
+  if (pacote?.semDevolucao) return 'ignorada';
   const conv = converterDevolucaoML(pacote);
   let d = banco.devolucoes.find((x) => x.ml?.claimId === conv.ml.claimId);
   const nova = !d;
@@ -171,6 +215,8 @@ function aplicarPacoteML(pacote) {
   } else {
     d.ml = { ...d.ml, ...conv.ml, revisao: d.ml.revisao };
     if (!d.frete && conv.campos.frete) d.frete = conv.campos.frete;
+    // O produto das devoluções do ML não é editado na tela: segue o nome real do SKU.
+    if (conv.campos.produto) d.produto = conv.campos.produto;
   }
   if (conv.rastreio && !d.rastreio) d.rastreio = conv.rastreio;
   moverParaEtapaML(d, conv.etapa);
@@ -197,35 +243,51 @@ function montarRevisaoML(d, { resultado, motivo, mensagem, anexos = [] }) {
 /* ------------------------ Chamadas (usam a ponte) ------------------------ */
 
 /** Busca na ponte as devoluções novas ou alteradas e aplica no banco. */
-async function sincronizarML({ silencioso = false } = {}) {
+async function sincronizarML({ silencioso = false, completa = false } = {}) {
   if (sincronizandoML) return null;
   sincronizandoML = true;
   atualizarBotaoML();
   try {
+    // Tabela de produtos primeiro: as devoluções importadas a seguir já saem com o nome real.
+    try {
+      await sincronizarCatalogoPonte();
+    } catch (erro) {
+      console.warn('Tabela de produtos não sincronizada com a ponte.', erro);
+    }
     const cfg = configML();
-    const desde = cfg.ultimaSincronizacao
+    // completa: ignora a última sincronização e revisa os últimos ML_DIAS_PRIMEIRA_SINCRONIZACAO dias.
+    const desde = cfg.ultimaSincronizacao && !completa
       ? somarDias(dataLocalDeISO(cfg.ultimaSincronizacao), -1)
       : somarDias(hojeISO(), -ML_DIAS_PRIMEIRA_SINCRONIZACAO);
     const { devolucoes = [] } = await chamarPonte(`/devolucoes?desde=${desde}`);
     const contagem = { novas: 0, atualizadas: 0, erros: 0 };
+    const falhas = [];
     for (const item of devolucoes) {
       const existente = banco.devolucoes.find((d) => d.ml?.claimId === String(item.claimId));
       if (existente && item.atualizadoEm && existente.ml.claimAtualizadoEm === item.atualizadoEm) continue;
       try {
         const resultado = aplicarPacoteML(await chamarPonte(`/devolucoes/${item.claimId}`));
-        contagem[resultado === 'nova' ? 'novas' : 'atualizadas']++;
+        if (resultado !== 'ignorada') contagem[resultado === 'nova' ? 'novas' : 'atualizadas']++;
       } catch (erro) {
         console.error(erro);
         contagem.erros++;
+        falhas.push(`Reclamação ${item.claimId}: ${erro.message}`);
       }
     }
     salvar();
-    salvarConfigML({ ...configML(), ultimaSincronizacao: new Date().toISOString() });
+    // Guarda os motivos para a tela Configurações (sem dados do comprador, só nº da reclamação e a mensagem).
+    // Com erro, a data não avança: as reclamações que falharam voltam na próxima busca.
+    const cfgAtual = configML();
+    salvarConfigML({
+      ...cfgAtual,
+      ultimaSincronizacao: falhas.length ? cfgAtual.ultimaSincronizacao : new Date().toISOString(),
+      ultimasFalhas: falhas.slice(0, 20),
+    });
     ultimoErroML = '';
     if (!silencioso || contagem.novas || contagem.erros)
       toast(
         `Mercado Livre: ${contagem.novas} nova(s), ${contagem.atualizadas} atualizada(s)` +
-          (contagem.erros ? `, ${contagem.erros} com erro` : '') +
+          (contagem.erros ? `, ${contagem.erros} com erro — ${falhas[0]}` : '') +
           '.',
       );
     redesenharListagens();

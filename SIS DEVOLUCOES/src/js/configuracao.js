@@ -13,6 +13,8 @@ const FORMATO_BACKUP = 'VATTEN_DEVOLUCOES_V1';
 const VERSAO_BANCO = 2;
 // Configuração da ponte do Mercado Livre (endereço e chave). Fica fora do banco e do backup.
 const CHAVE_CONFIG_ML = 'devolucoes_ml_config_v1';
+// Tabela SKU → nome real do produto (catalogo.js). Vai no backup.
+const CHAVE_CATALOGO = 'devolucoes_catalogo_v1';
 
 const OPCOES = {
   status: {

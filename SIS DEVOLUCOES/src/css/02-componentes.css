@@ -313,6 +313,12 @@
   padding: 6px;
 }
 
+/* Campo de chave: mascarado sem ser type="password" (evita o gerenciador de senhas do navegador). */
+.campo input.campo-segredo {
+  -webkit-text-security: disc;
+  text-security: disc;
+}
+
 .campo input:focus,
 .campo select:focus,
 .campo textarea:focus {
@@ -743,6 +749,98 @@
 .revisao-ml--ok { background: var(--verde-bg); color: var(--verde); }
 .revisao-ml--erro { background: var(--vermelho-bg); color: var(--vermelho); }
 .revisao-ml--andamento { background: var(--ambar-bg); color: var(--ambar); }
+
+/* Fotos e anexos da reclamação */
+.fotos-ml__titulo {
+  margin: 14px 0 8px;
+  font-size: 13px;
+}
+
+.fotos-ml {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.foto-ml {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 132px;
+  padding: 6px;
+  background: var(--superficie-2);
+  border: 1px solid var(--linha);
+  border-radius: var(--raio-pequeno);
+  color: var(--tinta);
+  font: inherit;
+  text-align: left;
+  cursor: zoom-in;
+}
+
+.foto-ml:hover {
+  border-color: var(--primaria);
+}
+
+.foto-ml__img {
+  display: grid;
+  place-items: center;
+  height: 100px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--cinza-bg);
+  font-size: 11px;
+  color: var(--suave);
+  text-align: center;
+  word-break: break-word;
+}
+
+.foto-ml__img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.foto-ml small {
+  font-size: 11px;
+  color: var(--suave);
+}
+
+.foto-ml--arquivo {
+  cursor: pointer;
+}
+
+.selo-fotos {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.visor {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  background: rgba(10, 20, 18, 0.88);
+  cursor: zoom-out;
+}
+
+.visor img {
+  max-width: 100%;
+  max-height: calc(100vh - 90px);
+  border-radius: var(--raio-pequeno);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.visor__legenda {
+  margin: 0;
+  max-width: 800px;
+  color: #e7f1ee;
+  text-align: center;
+}
 
 .campos-ml {
   /* fieldset tem largura mínima = conteúdo; sem isso vaza do painel lateral */

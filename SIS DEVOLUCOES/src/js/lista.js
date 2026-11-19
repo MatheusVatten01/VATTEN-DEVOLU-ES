@@ -10,9 +10,14 @@ function seloML(d) {
   if (d.origem !== 'mercadolivre') return '';
   const situacao = d.ml?.revisao?.situacao;
   const alerta = situacao === 'erro' || situacao === 'pendente';
-  return ` <span class="selo-ml${alerta ? ' selo-ml--alerta' : ''}" title="${
-    alerta ? 'Revisão ainda não enviada ao Mercado Livre' : 'Importada do Mercado Livre'
-  }">ML${alerta ? ' !' : ''}</span>`;
+  // Conta o que veio do comprador ou do mediador do ML (na conta real as fotos vieram pela mediação); não os da Vatten.
+  const fotos = (d.ml?.anexos || []).filter((a) => a.de !== 'respondent').length;
+  return (
+    ` <span class="selo-ml${alerta ? ' selo-ml--alerta' : ''}" title="${
+      alerta ? 'Revisão ainda não enviada ao Mercado Livre' : 'Importada do Mercado Livre'
+    }">ML${alerta ? ' !' : ''}</span>` +
+    (fotos ? ` <span class="selo-fotos" title="${fotos} foto(s)/anexo(s) do comprador ou do Mercado Livre">📷 ${fotos}</span>` : '')
+  );
 }
 
 function renderLista() {

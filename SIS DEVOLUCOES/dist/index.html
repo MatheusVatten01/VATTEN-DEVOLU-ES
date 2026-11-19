@@ -2,8 +2,17 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Vatten · Controle de Devoluções</title>
+  <!-- App instalável (PWA): manifesto, ícones e cor da barra do celular -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#12302b">
+  <link rel="icon" type="image/png" sizes="192x192" href="icones/icone-192.png">
+  <link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Devoluções">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <style>
 /* 01-BASE.CSS - variaveis (cores, medidas), base dos elementos e layout
    (barra superior, pagina centralizada, colunas e versao para celular). */
@@ -284,6 +293,25 @@ h3 {
   .formulario-lateral__resumo,
   .bloco--acao {
     position: static;
+  }
+
+  /* Celular: 16px nos campos evita o zoom automático do iPhone ao tocar. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* App instalado (tela cheia): afasta a barra superior do relógio/entalhe do
+   celular e o fim da página da barra de gestos. No navegador comum vale 0. */
+@media (display-mode: standalone) {
+  .topo {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .pagina {
+    padding-bottom: calc(48px + env(safe-area-inset-bottom));
   }
 }
 </style>
@@ -3596,6 +3624,15 @@ function iniciar() {
 
   navegar();
   iniciarSincronizacaoAutomaticaML();
+  registrarAppInstalavel();
+}
+
+// App instalável (PWA): registra o sw.js, que guarda uma cópia do sistema no
+// aparelho. Só funciona em https:// ou localhost; no duplo clique (file://) e
+// dentro dos testes (iframe) não faz nada.
+function registrarAppInstalavel() {
+  if (!('serviceWorker' in navigator) || location.protocol === 'file:' || window.top !== window) return;
+  navigator.serviceWorker.register('sw.js').catch((erro) => console.warn('App instalável indisponível:', erro));
 }
 
 iniciar();
