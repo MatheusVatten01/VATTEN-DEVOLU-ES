@@ -1,0 +1,10 @@
+# Snyk Code: analisar so o codigo-fonte que vai para producao (src/ e ponte/).
+# dist/ e a saida do build (copia de src/ num arquivo unico) e esboco-original/ e so referencia.
+SIS DEVOLUCOES/dist/
+SIS DEVOLUCOES/esboco-original/
+SIS RECEBIMENTO/dist/
+# Copia antiga solta do sistema (nao e usada nem publicada).
+SIS DEVOLUCOES/index.html.html
+# Paginas de teste: so rodam em localhost, nao sao publicadas.
+SIS DEVOLUCOES/testes/
+SIS RECEBIMENTO/testes/

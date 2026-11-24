@@ -24,9 +24,11 @@ function diasEntre(isoInicio, isoFim) {
 }
 
 function dataBR(iso) {
-  if (!iso) return '—';
-  const [a, m, d] = iso.slice(0, 10).split('-');
-  return `${d}/${m}/${a}`;
+  // Só aceita AAAA-MM-DD: o resultado vai para o HTML sem esc(), então nunca pode devolver texto livre
+  // (ex.: data adulterada num arquivo de backup).
+  const partes = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? ''));
+  if (!partes) return '—';
+  return `${partes[3]}/${partes[2]}/${partes[1]}`;
 }
 
 function dataHoraBR(isoCompleto) {

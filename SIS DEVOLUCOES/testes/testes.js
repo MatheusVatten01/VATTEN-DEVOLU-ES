@@ -136,6 +136,10 @@ teste('somarDias e diasEntre atravessam mês e ano', () => {
 teste('dataBR formata e trata vazio', () => {
   igual(W("dataBR('2026-10-05')"), '05/10/2026');
   igual(W("dataBR('')"), '—');
+  igual(W("dataBR('2026-10-05T12:30:00.000Z')"), '05/10/2026', 'data com hora:');
+  // Data adulterada (backup modificado) nunca vira HTML: o resultado vai para a tela sem esc().
+  igual(W("dataBR('<b>-<i>-<u>')"), '—', 'texto no lugar da data:');
+  igual(W('dataBR(20261005)'), '—', 'número no lugar da data:');
 });
 
 /* ===================== Prazos ===================== */

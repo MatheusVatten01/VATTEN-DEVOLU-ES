@@ -213,7 +213,10 @@ async function carregarFotoML(claimId, a, alvo) {
   try {
     const url = await urlDoAnexoML(claimId, a);
     if (!alvo.isConnected) return; // usuário já trocou de tela
-    alvo.innerHTML = `<img src="${url}" alt="${esc(a.nomeOriginal)}">`;
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = a.nomeOriginal || '';
+    alvo.replaceChildren(img);
   } catch (erro) {
     if (alvo.isConnected) alvo.textContent = `Não carregou: ${erro.message}`;
   }
