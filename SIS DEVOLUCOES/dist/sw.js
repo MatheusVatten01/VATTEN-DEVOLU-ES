@@ -10,7 +10,7 @@
    ========================================================================= */
 'use strict';
 
-const CACHE = 'devolucoes-app-v1';
+const CACHE = 'devolucoes-app-v2';
 const ARQUIVOS = ['./', 'manifest.webmanifest', 'icones/icone-192.png', 'icones/icone-512.png'];
 
 self.addEventListener('install', (e) => {

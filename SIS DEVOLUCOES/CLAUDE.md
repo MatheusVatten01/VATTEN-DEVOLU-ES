@@ -88,6 +88,9 @@ As devoluções guardam nome, CPF e contato de clientes. Backups (`backup-devolu
   em qualquer etapa aberta, com motivo obrigatório. Códigos sequenciais `DV-0001`.
 - Prazo do cliente = data de entrega + `PRAZO_DIAS[tipo]`: arrependimento 7 (CDC art. 49), defeito 90 (CDC art. 26),
   troca 30 e erro de envio 30 (política da loja). Registrar fora do prazo é permitido, com aviso.
+  Isso vale só para devolução **manual**. Devolução do **Mercado Livre**: o prazo é o da revisão
+  (`prazoRevisaoML`): `PRAZO_REVISAO_ML_DIAS` (3) após entrar em inspeção, ou a data do ML se for antes;
+  antes de o produto chegar não há prazo (`prazoDe` devolve `''` e `diasRestantes` devolve `Infinity`).
 - Painel: devoluções por mês de abertura, em aberto (alerta com prazo ≤ 1 dia), % concluídas que viraram
   troca/crédito, custo de frete reverso.
 - **Mercado Livre** (implementado; falta validar com conta real):

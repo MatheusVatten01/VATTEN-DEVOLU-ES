@@ -89,6 +89,8 @@ const OPCOES = {
 // Troca e erro de envio: política da loja — ajuste aqui.
 const PRAZO_DIAS = { arrependimento: 7, defeito: 90, troca: 30, erro_envio: 30 };
 const PRAZO_PADRAO = 30;
+// Devolução do Mercado Livre: dias para revisar depois que o produto chega (o ML reembolsa o comprador em 3 dias).
+const PRAZO_REVISAO_ML_DIAS = 3;
 
 // Ordem das etapas e o texto do botão que leva para a próxima.
 const ETAPAS = ['solicitada', 'aprovada', 'transito', 'inspecao', 'concluida'];

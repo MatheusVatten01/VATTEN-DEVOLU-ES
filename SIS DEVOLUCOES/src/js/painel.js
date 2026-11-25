@@ -75,6 +75,7 @@ function renderPainel() {
   // Prazos mais próximos entre as devoluções em aberto
   const proximos = abertas
     .slice()
+    .filter((d) => prazoDe(d)) // ML a caminho ainda não tem prazo correndo
     .sort((a, b) => diasRestantes(a) - diasRestantes(b))
     .slice(0, 6);
   $('painelPrazos').innerHTML = proximos.length
@@ -93,6 +94,7 @@ function renderPainel() {
 
 function textoPrazo(d) {
   const dias = diasRestantes(d);
+  if (dias === Infinity) return '—';
   if (dias < 0) return `Vencido há ${-dias} dia(s)`;
   if (dias === 0) return 'Hoje';
   if (dias === 1) return 'Amanhã';

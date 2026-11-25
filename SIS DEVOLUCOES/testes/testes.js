@@ -387,6 +387,45 @@ teste('ML: conversão do pacote preenche pedido, cliente, produto, valores e dad
   igual([c.ml.claimId, c.ml.returnId, c.ml.podeRevisar, c.ml.triagem], ['5298178312', '57341011', true, false]);
   igual(c.ml.prazoRevisao, '2026-10-24T23:59:00.000-03:00');
 });
+// Erro corrigido: devolução do ML em inspeção mostrava entrega + 90 dias (ex.: prazo em 2027).
+teste('ML: prazo é de 3 dias após o produto chegar, não entrega + 90 dias', () =>
+  isolado((win) => {
+    win.aplicarPacoteML(pacoteML({ status: 'delivered', acoes: [] }));
+    const d = W('banco.devolucoes[0]');
+    igual([d.tipo, d.status], ['defeito', 'inspecao']);
+    d.historico.find((h) => h.status === 'inspecao').em = new Date(2026, 9, 22, 10, 0).toISOString();
+    igual(win.prazoDe(d), '2026-10-25', 'chegada 22/10 + 3 dias:');
+    verdadeiro(win.prazoDe(d) !== win.somarDias(d.entrega, 90), 'ainda usa entrega + 90 dias');
+    verdadeiro(win.diasEntre(d.abertura, win.prazoDe(d)) < 30, 'prazo a mais de um mês da abertura');
+    // A lista e a planilha mostram o mesmo prazo.
+    win.renderLista();
+    const linha = win.document.getElementById('listaCorpo').textContent;
+    verdadeiro(linha.includes('25/10/2026'), 'lista não mostra 25/10/2026');
+    verdadeiro(!linha.includes('/2027'), 'lista ainda mostra prazo em 2027');
+    verdadeiro(win.gerarCsv([d]).includes('25/10/2026'), 'planilha sem o prazo certo');
+  }));
+teste('ML: prazo informado pelo ML vale quando é mais curto; nunca passa de 3 dias após a chegada', () =>
+  isolado((win) => {
+    win.aplicarPacoteML(pacoteML({ status: 'delivered' })); // due_date do ML: 24/10 23:59 (-03:00)
+    const d = W('banco.devolucoes[0]');
+    const chegada = d.historico.find((h) => h.status === 'inspecao');
+    chegada.em = new Date(2026, 9, 22, 10, 0).toISOString();
+    igual(win.prazoDe(d), win.hojeISO(new Date('2026-10-24T23:59:00.000-03:00')), 'ML mais curto:');
+    chegada.em = new Date(2026, 9, 18, 10, 0).toISOString();
+    igual(win.prazoDe(d), '2026-10-21', 'ML mais longo que 3 dias:');
+  }));
+teste('ML: a caminho não tem prazo correndo e as telas não quebram; manual continua com o prazo do cliente', () =>
+  isolado((win) => {
+    win.aplicarPacoteML(pacoteML({ status: 'shipped', acoes: [] }));
+    const d = W('banco.devolucoes[0]');
+    igual([win.prazoDe(d), win.diasRestantes(d) === Infinity, win.textoPrazo(d)], ['', true, '—']);
+    const manual = criar(win, { tipo: 'defeito' });
+    igual(win.prazoDe(manual), '2026-12-30', 'manual (entrega 01/10 + 90):');
+    win.renderPainel();
+    win.renderLista();
+    win.renderDetalhe(d.codigo);
+    verdadeiro(!win.document.getElementById('painelPrazos').textContent.includes(d.codigo), 'ML sem prazo no painel');
+  }));
 teste('ML: status do ML vira a etapa certa', () => {
   const etapa = (status) => W('converterDevolucaoML')(pacoteML({ status })).etapa;
   igual(

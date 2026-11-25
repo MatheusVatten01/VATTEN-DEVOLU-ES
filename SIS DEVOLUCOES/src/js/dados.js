@@ -62,14 +62,32 @@ function buscar(codigo) {
   return banco.devolucoes.find((d) => d.codigo === codigo);
 }
 
-/** Prazo final para o cliente devolver (entrega + dias do tipo). */
+/** Prazo da devolução (AAAA-MM-DD), ou '' quando ainda não há prazo correndo.
+    Manual: prazo do cliente para devolver (entrega + dias do tipo).
+    Mercado Livre: prazo da equipe para revisar o produto — ver prazoRevisaoML(). */
 function prazoDe(d) {
+  if (d.origem === 'mercadolivre') return prazoRevisaoML(d);
   return somarDias(d.entrega, PRAZO_DIAS[d.tipo] ?? PRAZO_PADRAO);
 }
 
-/** Dias que faltam até o prazo (negativo = vencido). */
+/** Devolução do ML: o comprador já foi aprovado pelo ML, então o prazo do CDC (entrega + 90 dias
+    para defeito) não vale. O que corre é o prazo para revisar: PRAZO_REVISAO_ML_DIAS após o produto
+    chegar (entrada em "Em inspeção"), nunca depois da data que o próprio ML informar.
+    Antes de o produto chegar não há prazo. */
+function prazoRevisaoML(d) {
+  const chegada = (d.historico || []).find((h) => h.status === 'inspecao')?.em;
+  const chegou = chegada ? new Date(chegada) : null;
+  const porChegada = chegou && !isNaN(chegou) ? somarDias(hojeISO(chegou), PRAZO_REVISAO_ML_DIAS) : '';
+  const informado = d.ml?.prazoRevisao ? new Date(d.ml.prazoRevisao) : null;
+  const doML = informado && !isNaN(informado) ? hojeISO(informado) : '';
+  if (porChegada && doML) return doML < porChegada ? doML : porChegada;
+  return porChegada || doML;
+}
+
+/** Dias que faltam até o prazo (negativo = vencido; Infinity = sem prazo correndo). */
 function diasRestantes(d) {
-  return diasEntre(hojeISO(), prazoDe(d));
+  const prazo = prazoDe(d);
+  return prazo ? diasEntre(hojeISO(), prazo) : Infinity;
 }
 
 function registrarEtapa(d, status, nota = '') {
